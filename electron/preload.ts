@@ -43,3 +43,11 @@ contextBridge.exposeInMainWorld('usage', {
     return ipcRenderer.invoke('usage:syncNow')
   },
 })
+
+contextBridge.exposeInMainWorld('cloud', {
+  getState() { return ipcRenderer.invoke('cloud:getState') },
+  authenticate(input: unknown) { return ipcRenderer.invoke('cloud:authenticate', input) },
+  logout() { return ipcRenderer.invoke('cloud:logout') },
+  syncNow() { return ipcRenderer.invoke('cloud:syncNow') },
+  getSummary(date: string, deviceId?: string) { return ipcRenderer.invoke('cloud:getSummary', date, deviceId) },
+})

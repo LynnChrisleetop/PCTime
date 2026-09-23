@@ -1,5 +1,5 @@
-import { app, BrowserWindow, ipcMain, dialog, Menu, Tray, nativeImage } from 'electron'
-import type { Event } from 'electron'
+import { app, BrowserWindow, ipcMain, dialog, Menu, Tray, nativeImage, safeStorage } from 'electron'
+import type { Event, IpcMainInvokeEvent } from 'electron'
 import { fileURLToPath } from 'node:url'
 import path from 'node:path'
 import fs from 'node:fs/promises'
@@ -10,6 +10,8 @@ import { createSerialQueue, resolveCategory } from './configModel'
 import { createQuitHandler } from './lifecycle'
 import { syncUsageWithWebdav, testWebdavConnection, validateWebdav, webdavErrorMessage } from './webdavSync'
 import type { WebdavClient } from './webdavSync'
+import { createCloudService } from './cloudService'
+import type { CloudAuthentication, CloudState } from './cloudService'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 
@@ -43,6 +45,8 @@ if (customUserData || isDev) {
 let win: BrowserWindow | null
 let usageTracker: Awaited<ReturnType<typeof createUsageTracker>> | null = null
 let trackerError: string | null = null
+let cloudService: Awaited<ReturnType<typeof createCloudService>> | null = null
+let cloudError: string | null = null
 let usageConfig: UsageConfig | null = null
 let syncTimer: NodeJS.Timeout | null = null
 let dailyTimer: NodeJS.Timeout | null = null
@@ -308,6 +312,19 @@ if (!isDev) {
 
 app.whenReady().then(async () => {
   usageConfig = await loadConfig()
+  try {
+    cloudService = await createCloudService({
+      directory: app.getPath('userData'),
+      encryption: {
+        available: () => safeStorage.isEncryptionAvailable(),
+        encrypt: (value) => safeStorage.encryptString(value),
+        decrypt: (value) => safeStorage.decryptString(value),
+      },
+    })
+    cloudService.start()
+  } catch {
+    cloudError = '跨设备记录服务未能启动。本机原有统计仍可使用，请检查独立记录文件和数据目录权限后重启。'
+  }
   updateAutoLaunch()
   scheduleSync()
   if (shouldUseTray()) {
@@ -393,8 +410,43 @@ app.whenReady().then(async () => {
     return { saved: true, path: result.filePath }
   })
 
+  const assertCloudSender = (event: IpcMainInvokeEvent) => {
+    if (!win || event.sender !== win.webContents || event.senderFrame !== win.webContents.mainFrame) {
+      throw new Error('无法从此页面访问跨设备账号。')
+    }
+    const senderUrl = new URL(event.senderFrame.url)
+    const trusted = VITE_DEV_SERVER_URL
+      ? senderUrl.origin === new URL(VITE_DEV_SERVER_URL).origin
+      : senderUrl.protocol === 'file:' && path.resolve(fileURLToPath(senderUrl)) === path.resolve(RENDERER_DIST, 'index.html')
+    if (!trusted) throw new Error('无法从此页面访问跨设备账号。')
+  }
+  const availableCloud = () => {
+    if (!cloudService) throw new Error(cloudError ?? '跨设备记录服务尚未就绪。')
+    return cloudService
+  }
+  ipcMain.handle('cloud:getState', (event): CloudState => {
+    assertCloudSender(event)
+    return cloudService?.getState() ?? { serverUrl: '', user: null, device: null, syncing: false, lastSyncedAt: null, error: cloudError }
+  })
+  ipcMain.handle('cloud:authenticate', (event, input: CloudAuthentication) => {
+    assertCloudSender(event)
+    return availableCloud().authenticate(input)
+  })
+  ipcMain.handle('cloud:logout', (event) => {
+    assertCloudSender(event)
+    return availableCloud().logout()
+  })
+  ipcMain.handle('cloud:syncNow', (event) => {
+    assertCloudSender(event)
+    return availableCloud().syncNow()
+  })
+  ipcMain.handle('cloud:getSummary', (event, date: string, deviceId?: string) => {
+    assertCloudSender(event)
+    return availableCloud().getSummary(date, deviceId)
+  })
+
   try {
-    usageTracker = await createUsageTracker()
+    usageTracker = await createUsageTracker({ onInterval: cloudService?.record })
   } catch (error) {
     console.error('Failed to start usage tracker', error)
     const detail = error instanceof Error ? `：${error.message}。` : '。'
@@ -417,7 +469,7 @@ app.on('before-quit', createQuitHandler({
   },
   finish: () => enqueueConfigOperation(async () => {
     // Flush the final sample before uploading, and keep Electron alive until done.
-    await usageTracker?.stop()
+    try { await usageTracker?.stop() } finally { await cloudService?.stop() }
     if (usageConfig?.webdav.enabled && usageConfig.webdav.syncMode === 'onClose') {
       try { await syncWebdav() } catch (error) { console.error('WebDAV sync failed:', webdavErrorMessage(error)) }
     }

@@ -44,6 +44,7 @@ type UsageConfig = {
 }
 
 interface Window {
+  cloud?: import('./lib/cloud').CloudApi
   usage: {
     getSummary: (range?: string, date?: string) => Promise<UsageSummary>
     getConfig: () => Promise<UsageConfig>
