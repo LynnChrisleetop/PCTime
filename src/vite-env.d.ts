@@ -15,6 +15,7 @@ type UsageConfig = {
   categories: string[]
   defaultCategory: string
   categoryColors: Record<string, string>
+  categoryPaletteVersion?: number
   webdav: {
     enabled: boolean
     url: string

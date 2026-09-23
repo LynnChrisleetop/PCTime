@@ -26,6 +26,7 @@ export type UsageConfig = {
   rules: CategoryRule[]
   defaultCategory: string
   categoryColors: Record<string, string>
+  categoryPaletteVersion?: number
   webdav: WebDavConfig
   appSettings: {
     autoLaunch: boolean
@@ -39,8 +40,9 @@ export const DEFAULT_CONFIG: UsageConfig = {
   categories: ['工作', '学习', '娱乐', '社交', '其他'],
   defaultCategory: '其他',
   categoryColors: {
-    其他: '#c9ced3', 学习: '#82afa0', 工作: '#197568', 娱乐: '#d6b278', 社交: '#8a9bb8',
+    工作: '#147d9e', 学习: '#f4cc39', 娱乐: '#f48158', 社交: '#a49bca', 其他: '#cbd5df',
   },
+  categoryPaletteVersion: 1,
   webdav: {
     enabled: false, url: '', username: '', password: '', remotePath: '/PCTime',
     syncIntervalMinutes: 5, syncMode: 'interval', syncHour: 9, syncMinute: 0, syncWeekday: 1,
@@ -63,16 +65,40 @@ function integer(value: unknown, fallback: number, min: number, max: number) {
   return Number.isFinite(parsed) ? Math.min(max, Math.max(min, Math.trunc(parsed))) : fallback
 }
 
+const LEGACY_DEFAULT_COLORS: Record<string, string> = {
+  工作: '#197568', 学习: '#82afa0', 娱乐: '#d6b278', 社交: '#8a9bb8', 其他: '#c9ced3',
+}
+
+function hasUntouchedLegacyPalette(config: Record<string, unknown>, colors: Record<string, unknown>) {
+  // Inspect the original input, before normalization can add a missing category
+  // or remove duplicates. All five category names and color keys must be present
+  // exactly once, with no extra keys and no customized color values.
+  const categories = config.categories
+  if (!Array.isArray(categories) || categories.length !== 5 || new Set(categories).size !== 5) return false
+  if (!categories.every((category) => typeof category === 'string' && Object.prototype.hasOwnProperty.call(LEGACY_DEFAULT_COLORS, category))) return false
+  return Object.keys(colors).length === 5 && Object.entries(LEGACY_DEFAULT_COLORS).every(
+    ([category, color]) => text(colors[category]).toLowerCase() === color
+  )
+}
+
 export function sanitizeConfig(value: unknown): UsageConfig {
   const config = record(value)
   const categoryInput = Array.isArray(config.categories) ? config.categories : DEFAULT_CONFIG.categories
   const categories = [...new Set(categoryInput.map((category) => text(category)).filter(Boolean))]
   const orderedCategories = [...categories.filter((category) => category !== '其他'), '其他']
-  const categoryColors: Record<string, string> = {}
   const colors = record(config.categoryColors)
+  const previousPaletteVersion = integer(config.categoryPaletteVersion, 0, 0, Number.MAX_SAFE_INTEGER)
+  const migratePalette = previousPaletteVersion < 1 && hasUntouchedLegacyPalette(config, colors)
+  // Record every evaluated config, including customized ones. A second sanitize
+  // must not reclassify a previously incomplete/customized palette as a default.
+  const categoryPaletteVersion = Math.max(1, previousPaletteVersion)
+  const categoryColors: Record<string, string> = Object.fromEntries(
+    Object.entries(colors).map(([key, value]) => [key, text(value)])
+      .filter(([, color]) => /^#[\da-f]{6}$/i.test(color))
+  )
   for (const category of orderedCategories) {
-    const color = text(colors[category])
-    categoryColors[category] = /^#[\da-f]{6}$/i.test(color) ? color : DEFAULT_CONFIG.categoryColors[category] ?? '#c9ced3'
+    const color = migratePalette ? DEFAULT_CONFIG.categoryColors[category] : text(colors[category])
+    categoryColors[category] = /^#[\da-f]{6}$/i.test(color) ? color : DEFAULT_CONFIG.categoryColors[category] ?? '#cbd5df'
   }
   const sourceWebdav = record(config.webdav)
   const mode = sourceWebdav.syncMode
@@ -106,7 +132,7 @@ export function sanitizeConfig(value: unknown): UsageConfig {
   }
   const requestedDefault = text(config.defaultCategory)
   const defaultCategory = orderedCategories.includes(requestedDefault) ? requestedDefault : '其他'
-  return { categories: orderedCategories, rules, defaultCategory, categoryColors, webdav, appSettings }
+  return { categories: orderedCategories, rules, defaultCategory, categoryColors, categoryPaletteVersion, webdav, appSettings }
 }
 
 export function resolveCategory(config: UsageConfig, appName: string, title: string) {

@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { ArcElement, Chart as ChartJS, Tooltip } from 'chart.js'
+import type { ChartData, ChartOptions } from 'chart.js'
 import { Doughnut } from 'react-chartjs-2'
 import SettingsPanel from './components/SettingsPanel'
 import {
@@ -31,7 +32,7 @@ const rangeNames = {
   date: '指定日期',
 }
 const pageInfo: Record<Page, [string, string]> = {
-  overview: ['时间概览', '了解时间的去向，找到自己的节奏。'],
+  overview: ['时间概览', '看看今天的时间，都去了哪里。'],
   activity: ['使用明细', '从应用到窗口，每一段时间都有迹可循。'],
   rules: ['分类规则', '给时间一个归属，让统计更贴近你的日常。'],
   settings: ['偏好设置', '按你的习惯，安排记录与同步。'],
@@ -130,18 +131,34 @@ function Icon({
 }
 
 function AppBadge({ app }: { app: string }) {
-  const colors = ['jade', 'blue', 'sand', 'slate']
-  const index =
-    Array.from(app).reduce((sum, char) => sum + char.charCodeAt(0), 0) %
-    colors.length
+  const colors = ['blue', 'coral', 'sand', 'slate']
+  const hash = Array.from(app).reduce(
+    (value, char) => (Math.imul(value, 31) + char.charCodeAt(0)) >>> 0,
+    0
+  )
+  const index = (hash ^ (hash >>> 16)) >>> 0
   return (
-    <span className={`app-badge ${colors[index]}`} aria-hidden="true">
+    <span className={`app-badge ${colors[index % colors.length]}`} aria-hidden="true">
       {app
         .replace(/^Microsoft /, '')
         .slice(0, 1)
         .toUpperCase()}
     </span>
   )
+}
+
+function useReducedMotion() {
+  const [reduced, setReduced] = useState(
+    () => window.matchMedia('(prefers-reduced-motion: reduce)').matches
+  )
+  useEffect(() => {
+    const preference = window.matchMedia('(prefers-reduced-motion: reduce)')
+    const update = () => setReduced(preference.matches)
+    update()
+    preference.addEventListener('change', update)
+    return () => preference.removeEventListener('change', update)
+  }, [])
+  return reduced
 }
 
 function App() {
@@ -165,6 +182,9 @@ function App() {
   const [kind, setKind] = useState<'apps' | 'windows'>('apps')
   const [appFilter, setAppFilter] = useState('')
   const [listPage, setListPage] = useState(1)
+  const [chartUpdateMode, setChartUpdateMode] = useState<'default' | 'none'>('none')
+  const reducedMotion = useReducedMotion()
+  const lastLoadedSelection = useRef<string | null>(null)
   const exportMenu = useRef<HTMLDetailsElement>(null)
 
   const reloadConfig = useCallback(async () => {
@@ -190,9 +210,11 @@ function App() {
     }
     let active = true
     let timer: ReturnType<typeof setTimeout>
-    setSummary(null)
+    // Keep the chart mounted while changing ranges. Its labels continue to
+    // describe the displayed response until the replacement has arrived.
     setLoading(true)
     setSummaryError('')
+    const selection = range === 'date' ? `date:${selectedDate}` : range
     const poll = async () => {
       try {
         const data = await api.getSummary(
@@ -200,6 +222,13 @@ function App() {
           range === 'date' ? selectedDate : undefined
         )
         if (active) {
+          setChartUpdateMode(
+            lastLoadedSelection.current !== null &&
+              lastLoadedSelection.current !== selection
+              ? 'default'
+              : 'none'
+          )
+          lastLoadedSelection.current = selection
           setSummary(data)
           setSummaryError('')
         }
@@ -256,15 +285,52 @@ function App() {
   const visibleEntries = entries.slice((currentPage - 1) * 12, currentPage * 12)
   const topApp = summary?.apps[0]
   const isStats = page === 'overview' || page === 'activity'
-  const rangeLabel = range === 'date' ? selectedDate : rangeNames[range]
+  const displayedRange = summary?.range ?? range
+  const rangeLabel = displayedRange === 'date'
+    ? summary?.date ?? selectedDate
+    : rangeNames[displayedRange]
+  const requestedRangeLabel = range === 'date' ? selectedDate : rangeNames[range]
+  const summaryMatchesSelection = Boolean(summary && summary.range === range &&
+    (range !== 'date' || summary.date === selectedDate))
+  const summaryPending = loading || !summaryMatchesSelection
+  const isRecording = Boolean(summary?.current && !summaryPending &&
+    !configError && !summaryError && !summary.trackingError && !summary.saveError)
   const totalMinutes = Math.floor(total / 60000)
+  const chartData = useMemo<ChartData<'doughnut'>>(() => ({
+    labels: categories.map((item) => item.category),
+    datasets: [{
+      data: categories.map((item) => item.totalMs),
+      backgroundColor: categories.map((item) => config?.categoryColors[item.category] ?? '#cbd5df'),
+      borderWidth: 4,
+      borderColor: '#ffffff',
+      borderRadius: 5,
+      hoverOffset: 3,
+    }],
+  }), [categories, config?.categoryColors])
+  const chartOptions = useMemo<ChartOptions<'doughnut'>>(() => ({
+    cutout: '78%',
+    maintainAspectRatio: false,
+    animation: !reducedMotion && chartUpdateMode === 'default'
+      ? {
+          duration: 350,
+          easing: 'easeOutQuart',
+          animateRotate: false,
+          animateScale: false,
+          onComplete: () => setChartUpdateMode('none'),
+        }
+      : false,
+    plugins: {
+      legend: { display: false },
+      tooltip: { callbacks: { label: (context) => ` ${context.label}：${duration(Number(context.raw))}` } },
+    },
+  }), [reducedMotion, chartUpdateMode])
 
   useEffect(() => {
     setListPage(1)
   }, [query, kind, appFilter, range, selectedDate])
 
   const exportSummary = async (type: 'csv' | 'json') => {
-    if (!summary || exportBusy) return
+    if (!summary || summaryPending || exportBusy) return
     if (exportMenu.current) exportMenu.current.open = false
     setExportBusy(true)
     try {
@@ -288,6 +354,7 @@ function App() {
   }
 
   const showWindows = (app: string) => {
+    if (summaryPending) return
     setAppFilter(app)
     setQuery('')
     setKind('windows')
@@ -509,13 +576,13 @@ function App() {
                 </summary>
                 <div className="export-options">
                   <button
-                    disabled={!summary || loading || exportBusy}
+                    disabled={!summary || summaryPending || exportBusy}
                     onClick={() => void exportSummary('csv')}
                   >
                     CSV 表格<span>适合 Excel 查看</span>
                   </button>
                   <button
-                    disabled={!summary || loading || exportBusy}
+                    disabled={!summary || summaryPending || exportBusy}
                     onClick={() => void exportSummary('json')}
                   >
                     JSON 数据<span>完整使用统计</span>
@@ -523,11 +590,16 @@ function App() {
                 </div>
               </details>
             </div>
+            {summary && summaryPending && !summaryError && (
+              <p className="range-update" role="status">
+                正在读取{requestedRangeLabel}，当前仍显示{rangeLabel}的统计。
+              </p>
+            )}
             {summaryError && (
               <div className="notice error" role="alert">
                 <span>
                   {summaryError}
-                  {summary && ' 当前显示上次读取的数据。'}
+                  {summary && ` 当前显示${rangeLabel}上次读取的数据。`}
                 </span>
                 <button
                   className="button button-quiet"
@@ -540,7 +612,7 @@ function App() {
           </>
         )}
 
-        {isStats && loading ? (
+        {isStats && loading && !summary ? (
           <div
             className="loading-grid"
             role="status"
@@ -553,8 +625,11 @@ function App() {
           </div>
         ) : page === 'overview' ? (
           <>
-            <div className="overview-grid">
+            <div className="overview-grid" aria-busy={loading}>
               <section className="panel time-panel">
+                <span className="time-decoration" aria-hidden="true" hidden={totalMinutes >= 6000}>
+                  <Icon name="clock" size={108} />
+                </span>
                 <div className="section-heading">
                   <span className="eyebrow">{rangeLabel} · 累计使用</span>
                   <span className="subtle-icon">
@@ -571,8 +646,8 @@ function App() {
                   {total > 0 && total < 60000
                     ? `已记录 ${Math.floor(total / 1000)} 秒`
                     : total > 0
-                      ? '屏幕前的时间，正在变得清晰。'
-                      : '从下一次使用开始，慢慢积累你的时间记录。'}
+                      ? '每一段时间，都有自己的去处。'
+                      : '切换到其他应用，开始记录今天。'}
                 </p>
                 <div className="time-metrics">
                   <div>
@@ -596,7 +671,7 @@ function App() {
                 </div>
                 <div className="time-note">
                   <span className="status-dot" />
-                  {range === 'today'
+                  {displayedRange === 'today'
                     ? '每 2 秒更新 · 空闲超过 60 秒暂停记录'
                     : '按所选范围汇总 · 仅统计活跃使用时间'}
                 </div>
@@ -617,37 +692,9 @@ function App() {
                     <div className="donut">
                       <Doughnut
                         aria-label="各分类使用时长分布，详细数据见右侧列表"
-                        data={{
-                          labels: categories.map((item) => item.category),
-                          datasets: [
-                            {
-                              data: categories.map((item) => item.totalMs),
-                              backgroundColor: categories.map(
-                                (item) =>
-                                  config?.categoryColors[item.category] ??
-                                  '#a6b4b0'
-                              ),
-                              borderWidth: 4,
-                              borderColor: '#ffffff',
-                              borderRadius: 5,
-                              hoverOffset: 3,
-                            },
-                          ],
-                        }}
-                        options={{
-                          cutout: '78%',
-                          maintainAspectRatio: false,
-                          animation: false,
-                          plugins: {
-                            legend: { display: false },
-                            tooltip: {
-                              callbacks: {
-                                label: (context) =>
-                                  ` ${context.label}：${duration(Number(context.raw))}`,
-                              },
-                            },
-                          },
-                        }}
+                        data={chartData}
+                        options={chartOptions}
+                        updateMode={reducedMotion ? 'none' : chartUpdateMode}
                       />
                       <div className="donut-label">
                         <strong>{categories.length}</strong>
@@ -663,7 +710,7 @@ function App() {
                               style={{
                                 background:
                                   config?.categoryColors[item.category] ??
-                                  '#a6b4b0',
+                                  '#cbd5df',
                               }}
                             />
                             <span>{item.category}</span>
@@ -709,6 +756,7 @@ function App() {
                       <button
                         className="ranking-row"
                         key={item.app}
+                        disabled={summaryPending}
                         onClick={() => showWindows(item.app)}
                         aria-label={`查看 ${item.app} 的窗口明细`}
                       >
@@ -721,7 +769,8 @@ function App() {
                           <div className="usage-track">
                             <span
                               style={{
-                                width: `${percentage(item.totalMs, topApp?.totalMs ?? total)}%`,
+                                width: '100%',
+                                transform: `scaleX(${Math.min(1, Math.max(0, percentage(item.totalMs, topApp?.totalMs ?? total) / 100))})`,
                               }}
                             />
                           </div>
@@ -738,16 +787,16 @@ function App() {
                   <div className="empty-state">
                     <Icon name="monitor" size={34} />
                     <h3>
-                      {range === 'today'
+                      {displayedRange === 'today'
                         ? '今天的记录，从现在开始'
                         : '这个时间范围还没有记录'}
                     </h3>
                     <p>
-                      {range === 'today'
+                      {displayedRange === 'today'
                         ? '保持 PCTime 运行，切换到其他应用即可自动记录。'
                         : '试试其他日期，或返回今天查看实时记录。'}
                     </p>
-                    {range !== 'today' && (
+                    {displayedRange !== 'today' && (
                       <button
                         className="button"
                         onClick={() => selectRange('today')}
@@ -763,7 +812,7 @@ function App() {
                   <div className="section-heading">
                     <h2>当前状态</h2>
                     <span
-                      className={`live-label ${summary?.current ? '' : 'idle'}`}
+                      className={`live-label ${isRecording ? 'recording' : 'idle'}`}
                     >
                       <span className="status-dot" />
                       {summaryError
@@ -773,7 +822,7 @@ function App() {
                           : summary?.saveError
                             ? '保存异常'
                             : summary?.current
-                              ? '记录中'
+                              ? isDemo ? '演示记录中' : '记录中'
                               : '等待活动'}
                     </span>
                   </div>
@@ -827,7 +876,7 @@ function App() {
             </div>
           </>
         ) : page === 'activity' ? (
-          <section className="panel detail-panel">
+          <section className="panel detail-panel" aria-busy={loading}>
             <div className="section-heading detail-heading">
               <div className="segmented">
                 <button
@@ -916,7 +965,8 @@ function App() {
                               <div className="usage-track">
                                 <span
                                   style={{
-                                    width: `${percentage(item.totalMs, total)}%`,
+                                    width: '100%',
+                                    transform: `scaleX(${Math.min(1, Math.max(0, percentage(item.totalMs, total) / 100))})`,
                                   }}
                                 />
                               </div>
@@ -926,6 +976,7 @@ function App() {
                             <td>
                               <button
                                 className="text-button"
+                                disabled={summaryPending}
                                 onClick={() => showWindows(item.app)}
                               >
                                 查看窗口

@@ -293,7 +293,7 @@ export default function SettingsPanel({
     setRuleDraft((current) => ({
       ...current,
       categories: [...current.categories, name],
-      categoryColors: { ...current.categoryColors, [name]: '#197568' },
+      categoryColors: { ...current.categoryColors, [name]: '#147d9e' },
     }))
     setCategoryName('')
     setCategoryError('')

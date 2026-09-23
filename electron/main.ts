@@ -218,7 +218,7 @@ function createWindow(forceShow = false) {
     height: 860,
     minWidth: 760,
     minHeight: 620,
-    backgroundColor: '#f4f6f8',
+    backgroundColor: '#f5f7f9',
     autoHideMenuBar: true,
     icon: path.join(process.env.VITE_PUBLIC, 'pctime.png'),
     show: false,

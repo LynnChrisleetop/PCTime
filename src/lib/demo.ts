@@ -4,12 +4,13 @@ const config: UsageConfig = {
   categories: ['工作', '学习', '娱乐', '社交', '其他'],
   defaultCategory: '其他',
   categoryColors: {
-    工作: '#197568',
-    学习: '#82afa0',
-    娱乐: '#d6b278',
-    社交: '#8a9bb8',
-    其他: '#c9ced3',
+    工作: '#147d9e',
+    学习: '#f4cc39',
+    娱乐: '#f48158',
+    社交: '#a49bca',
+    其他: '#cbd5df',
   },
+  categoryPaletteVersion: 1,
   appSettings: {
     autoLaunch: false,
     minimizeToTray: true,
@@ -89,7 +90,11 @@ export const demoApi: Window['usage'] = {
       categories: draft.categories.map((category, index) => ({
         category,
         totalMs: Math.round(
-          total * ([0.56, 0.22, 0.11, 0.07, 0.04][index] ?? 0)
+          total * ((range === 'week'
+            ? [0.49, 0.27, 0.12, 0.08, 0.04]
+            : range === 'month'
+              ? [0.48, 0.24, 0.14, 0.09, 0.05]
+              : [0.56, 0.22, 0.11, 0.07, 0.04])[index] ?? 0)
         ),
       })),
     }
