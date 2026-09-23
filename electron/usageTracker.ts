@@ -227,7 +227,9 @@ function aggregate(store: UsageStore, keys: string[]) {
   return { appList, windowList }
 }
 
-export async function createUsageTracker() {
+export async function createUsageTracker(options: {
+  onInterval?: (app: string, title: string, from: number, to: number) => void
+} = {}) {
   const require = createRequire(import.meta.url)
   type ActiveWin = typeof import('active-win')
   let activeWin: ActiveWin | null = null
@@ -343,6 +345,7 @@ export async function createUsageTracker() {
       if (deltaMs > 0 && deltaMs <= MAX_SAMPLE_GAP_MS) {
         addInterval(state, state.current, state.lastTick, now)
         dirty = true
+        options.onInterval?.(state.current.app, state.current.title, state.lastTick, now)
       }
     }
 

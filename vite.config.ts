@@ -7,7 +7,11 @@ import react from '@vitejs/plugin-react'
 export default defineConfig(({ mode }) => ({
   server: {
     open: false,
+    watch: {
+      ignored: ['**/.artifacts/**', '**/.superpowers/**', '**/android/**', '**/server/data/**', '**/release/**'],
+    },
   },
+  optimizeDeps: { entries: ['index.html'] },
   plugins: [
     react(),
     ...(mode === 'web'

@@ -38,6 +38,7 @@ async function createHarness({ dev = false, customPath, trackerFailure, webdav }
       this.options = options
       this.webContents = new EventEmitter()
       this.webContents.send = () => {}
+      this.webContents.mainFrame = { url: dev ? 'http://localhost:5173/' : new URL('../dist/index.html', import.meta.url).href }
       this.visible = false
       this.minimized = false
       this.destroyed = false
@@ -69,8 +70,17 @@ async function createHarness({ dev = false, customPath, trackerFailure, webdav }
     async flush() {}, async merge() {},
     getSummary() { return { range: 'today', date: '2026-09-23', apps: [], windows: [] } },
   }
+  const cloud = {
+    start() { calls.push(['start-cloud']) },
+    async stop() { calls.push(['stop-cloud']) },
+    record() {},
+    getState() { return { serverUrl: '', user: null, device: null, syncing: false, lastSyncedAt: null, error: null } },
+    async authenticate() { return this.getState() }, async logout() { return this.getState() },
+    async syncNow() { return this.getState() }, async getSummary() { return { date: '2026-09-23', metric: 'sumDevices', totalMs: 0, devices: [], apps: [], updatedAt: null } },
+  }
   const dependencies = {
     electron: { app, BrowserWindow, Tray, Menu: { buildFromTemplate: (value) => value }, nativeImage: { createFromPath: (file) => file },
+      safeStorage: { isEncryptionAvailable: () => true, encryptString: value => Buffer.from(value), decryptString: value => value.toString() },
       ipcMain: { handle: (name, handler) => handlers.set(name, handler) }, dialog: { showErrorBox() {}, async showSaveDialog() { return { canceled: true } } } },
     'node:url': { fileURLToPath }, 'node:path': { default: path },
     'node:fs': { mkdirSync(directory) { calls.push(['mkdir', directory]) } },
@@ -78,6 +88,7 @@ async function createHarness({ dev = false, customPath, trackerFailure, webdav }
     './usageTracker': { async createUsageTracker() { if (trackerFailure) throw new Error(trackerFailure); return tracker } },
     './configStore': { async loadConfig() { return config }, async saveConfig(value) { config = configModel.sanitizeConfig(value); return config } },
     './configModel': configModel, './lifecycle': lifecycle, './webdavSync': webdavSync,
+    './cloudService': { async createCloudService() { return cloud } },
   }
   const env = {}
   if (dev) env.VITE_DEV_SERVER_URL = 'http://localhost:5173'
@@ -127,6 +138,26 @@ test('explicit test data directory also avoids changing startup registration', a
   const harness = await createHarness({ customPath: '/isolated-test-data' })
   assert.equal(harness.directories.get('userData'), path.resolve('/isolated-test-data'))
   assert.equal(harness.calls.some(([name]) => name === 'login'), false)
+})
+
+test('cloud account IPC rejects another window, subframes and an externally navigated page', async () => {
+  const harness = await createHarness({ dev: true })
+  const contents = harness.windows[0].webContents
+  const handler = harness.handlers.get('cloud:getState')
+  assert.equal(handler({ sender: contents, senderFrame: contents.mainFrame }).user, null)
+  assert.throws(() => handler({ sender: {}, senderFrame: contents.mainFrame }), /无法从此页面/)
+  assert.throws(() => handler({ sender: contents, senderFrame: { url: contents.mainFrame.url } }), /无法从此页面/)
+  contents.mainFrame.url = 'https://untrusted.example/'
+  assert.throws(() => handler({ sender: contents, senderFrame: contents.mainFrame }), /无法从此页面/)
+})
+
+test('shutdown flushes the independent collector after stopping foreground sampling', async () => {
+  const harness = await createHarness()
+  harness.app.emit('before-quit', { preventDefault() {} })
+  await new Promise(resolve => setImmediate(resolve))
+  const order = harness.calls.map(([name]) => name)
+  assert.ok(order.indexOf('stop-tracker') < order.indexOf('stop-cloud'))
+  assert.ok(order.indexOf('stop-cloud') < order.lastIndexOf('quit'))
 })
 
 test('a second launch shows and restores a hidden minimized window', async () => {

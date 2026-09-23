@@ -53,9 +53,10 @@ async function createHarness({ stored = { dates: {} }, start = new Date(2026, 8,
     }, { context })
   })
   await module.evaluate()
-  const tracker = await module.namespace.createUsageTracker()
+  const intervals = []
+  const tracker = await module.namespace.createUsageTracker({ onInterval: (...values) => intervals.push(values) })
   return {
-    tracker, powerMonitor, files,
+    tracker, powerMonitor, files, intervals,
     setIdle(value) { idle = value },
     setSample(value) { sample = value },
     setWrite(value) { write = value },
@@ -286,5 +287,20 @@ test('background save failure is visible and clears only after a successful retr
   await h.saveTick()
   assert.equal(h.tracker.getSummary('today').saveError, undefined)
   assert.equal(JSON.parse(h.files.get(path.join('/test-data', 'usage.json'))).dates['2026-09-23'].apps.Editor.totalMs, 1000)
+  await h.tracker.stop()
+})
+
+test('the device collector receives only newly measured intervals, never imported history', async () => {
+  const start = new Date(2026, 8, 23, 12).getTime()
+  const h = await createHarness({ start, stored: { dates: { '2026-09-23': { apps: { Editor: { totalMs: 999000 } }, windows: {} } } } })
+  await h.tick(start + 1000)
+  assert.equal(h.intervals.length, 0)
+  await h.tick(start + 2000)
+  assert.deepEqual(h.intervals[0], ['Editor', 'Project', start + 1000, start + 2000])
+  await h.tracker.merge({ dates: { '2026-09-23': { apps: { Editor: { totalMs: 1999000 } }, windows: {} } } })
+  assert.equal(h.intervals.length, 1)
+  h.setIdle(65)
+  await h.tick(start + 3000)
+  assert.equal(h.intervals.length, 1)
   await h.tracker.stop()
 })

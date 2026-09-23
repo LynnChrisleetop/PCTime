@@ -1,10 +1,15 @@
 # PCTime
 
-PCTime 是面向 Windows 的桌面使用时间统计工具，在本机记录活跃应用与窗口标题，按应用、窗口和自定义分类汇总使用时长。基于 Electron、React、TypeScript、Vite 和 Chart.js。
+PCTime 现在支持 Windows 与 Android 的屏幕时间统计。登录同一账号后，可查看各设备合计、单台设备，以及微信、哔哩哔哩等应用的跨端合计。名称和图标暂沿用 PCTime，后续再统一品牌。
+
+Windows 保留原有本机应用、窗口、自定义分类和 WebDAV 功能；Android 使用系统“使用情况访问”权限。首次使用请看 [安装与开始记录](docs/quick-start.md)：本机统计无需账号或服务器。需要跨设备合计时，再看 [跨设备连接说明](docs/cross-device-guide.md)。
+
+Windows 使用 `PCTime-Setup-0.1.1.exe` 双击安装，自动创建桌面入口；Android 使用 `PCTime-Android-0.1.1-debug.apk` 安装。用户无需安装 Node.js 或运行开发命令。本仓库中的开发环境要求仅用于开发、构建或自行部署同步服务。
 
 ## 界面与功能
 
 - **时间概览**：查看总时长、分类分布、应用排行与当前活动，支持今天、近 7 天、本月、近一年、全部时间和指定日期。
+- **跨设备**：账号登录、每日合计、设备筛选、应用合并及来源展开。各设备同时使用的时间累加，例如电脑和手机各 10 分钟，合计 20 分钟。
 - **使用明细**：搜索应用或窗口标题、分页浏览，并从应用进入对应窗口明细；支持导出 JSON / CSV。
 - **分类规则**：设置分类、颜色与默认分类，以应用名和窗口标题匹配；规则从上到下按优先级生效。编辑先保留为草稿，显式保存后生效，可放弃更改、调整顺序及撤销删除。切换页面保留草稿。
 - **偏好设置**：管理开机启动、托盘行为和 WebDAV 同步。设置需显式保存，连接测试和同步会提示尚未保存的更改。
@@ -15,7 +20,7 @@ PCTime 是面向 Windows 的桌面使用时间统计工具，在本机记录活�
 
 ## 本地开发
 
-需要 Windows 10/11、Node.js 18 或更高版本及 npm。
+需要 Windows 10/11、Node.js 24 或更高版本及 npm（同步服务与完整测试使用 Node 内置 SQLite）。Android 构建要求见 [Android 说明](android/README.md)。
 
 ```powershell
 npm ci
@@ -30,11 +35,15 @@ npm run dev:web
 
 在终端显示的本地地址后添加 `?demo=1`，例如 [演示页面](http://127.0.0.1:5173/?demo=1)。演示使用示例数据，刷新后重置；网页不会监控电脑，也不会连接真实同步服务。
 
+`?cloud=1` 是真实账号的浏览器查看模式，需要服务端允许当前页面来源；会话仅保存在内存，刷新后需重新登录。浏览器不创建采集设备。
+
 | 命令 | 用途 |
 | --- | --- |
 | `npm run typecheck` | TypeScript 类型检查 |
 | `npm run lint` | 代码检查 |
 | `npm test` | 回归测试 |
+| `npm run server` | 启动本机同步服务，默认端口 4318 |
+| `npm run test:cloud` | 账号服务与浏览器客户端测试 |
 | `npm run build:app` | 编译前端及 Electron 代码，不打包 |
 | `npm run build` | 编译并打包 Windows 应用 |
 
@@ -43,6 +52,8 @@ npm run dev:web
 ## 数据目录与兼容性
 
 统计保存在 `usage.json`，配置保存在 `config.json`，均位于 Electron 用户数据目录。保留原有记录格式的读取兼容性，不需要清空历史记录。
+
+`device-usage.json` 单独保存本版本开始采集的设备记录；旧历史可能包含 WebDAV 合并数据，因此不回灌到跨设备账号。`cloud-session.json` 通过 Windows 系统安全存储加密登录凭据；退出账号后停止上传，本机记录保留。不要将同一个设备数据目录复制到多台电脑使用。
 
 开发模式默认使用 `%APPDATA%\PCTime-dev`，与已安装版本的数据隔离。可通过 `PCTIME_USER_DATA` 指定独立目录，例如：
 
@@ -67,6 +78,8 @@ npm run dev
 
 统计默认仅保存在本机，启用 WebDAV 后会上传到你指定的服务器。本地 JSON 文件可能包含敏感窗口标题；`config.json` 还包含 WebDAV 地址、账号和应用密码，请勿公开分享。
 
+登录跨设备账号后，仅向指定服务上传设备名称、应用名称/标识和每天的时长，原始窗口标题保留在本机。跨设备服务与 WebDAV 是两套独立功能。Android 登录凭据通过 Android Keystore 加密保存，应用禁止系统备份；服务端保存密码派生值和会话令牌摘要。
+
 界面导出的 JSON / CSV 只包含统计数据，不包含 WebDAV 凭据或应用设置，但仍可能包含窗口标题，分享前请检查内容。
 
 ## 项目结构
@@ -74,6 +87,9 @@ npm run dev
 ```text
 electron/       主进程、统计、配置及同步
 src/            React 界面与展示逻辑
+android/        原生 Android 应用与构建、算法验证脚本
+server/         账号、设备与每日快照服务
+docs/           跨设备使用指南、接口和实现计划
 tests/          回归测试
 public/         静态资源
 release/        本地打包产物（不提交到 Git）

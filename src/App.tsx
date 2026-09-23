@@ -3,6 +3,7 @@ import { ArcElement, Chart as ChartJS, Tooltip } from 'chart.js'
 import type { ChartData, ChartOptions } from 'chart.js'
 import { Doughnut } from 'react-chartjs-2'
 import SettingsPanel from './components/SettingsPanel'
+import CloudPanel from './components/CloudPanel'
 import {
   clockDuration,
   duration,
@@ -16,7 +17,7 @@ import './App.css'
 
 ChartJS.register(ArcElement, Tooltip)
 
-type Page = 'overview' | 'activity' | 'rules' | 'settings'
+type Page = 'overview' | 'activity' | 'rules' | 'settings' | 'cloud'
 type Notice = { kind: 'success' | 'error' | 'info'; text: string }
 const ranges: Array<[UsageSummary['range'], string]> = [
   ['today', '今天'],
@@ -32,6 +33,7 @@ const rangeNames = {
   date: '指定日期',
 }
 const pageInfo: Record<Page, [string, string]> = {
+  cloud: ['跨设备', '电脑与手机的时间，在这里相遇。'],
   overview: ['时间概览', '看看今天的时间，都去了哪里。'],
   activity: ['使用明细', '从应用到窗口，每一段时间都有迹可循。'],
   rules: ['分类规则', '给时间一个归属，让统计更贴近你的日常。'],
@@ -167,7 +169,8 @@ function App() {
     import.meta.env.DEV &&
     new URLSearchParams(location.search).get('demo') === '1' &&
     !window.ipcRenderer
-  const [page, setPage] = useState<Page>('overview')
+  const cloudViewer = !api && new URLSearchParams(location.search).get('cloud') === '1'
+  const [page, setPage] = useState<Page>(cloudViewer || new URLSearchParams(location.search).get('view') === 'cloud' ? 'cloud' : 'overview')
   const [range, setRange] = useState<UsageSummary['range']>('today')
   const [selectedDate, setSelectedDate] = useState(todayKey())
   const [summary, setSummary] = useState<UsageSummary | null>(null)
@@ -365,7 +368,7 @@ function App() {
     setAppFilter('')
   }
 
-  if (!api)
+  if (!api && !cloudViewer)
     return (
       <main className="connection-screen">
         <div className="brand-mark">
@@ -374,6 +377,7 @@ function App() {
         <h1>在桌面端，开始记录时间。</h1>
         <p>这个页面需要连接 PCTime 桌面应用，才能读取电脑使用记录。</p>
         <p className="muted">请运行 PCTime，或使用项目中的桌面开发命令启动。</p>
+        <a className="button" href="?cloud=1">登录查看跨设备统计</a>
         {import.meta.env.DEV && (
           <a className="button button-primary" href="?demo=1">
             查看界面演示
@@ -393,7 +397,7 @@ function App() {
           href="#overview"
           onClick={(event) => {
             event.preventDefault()
-            setPage('overview')
+            setPage(cloudViewer ? 'cloud' : 'overview')
           }}
           aria-label="PCTime 首页"
         >
@@ -408,6 +412,7 @@ function App() {
           {(
             [
               ['overview', 'grid', '概览'],
+              ['cloud', 'monitor', '跨设备'],
               ['activity', 'list', '明细'],
               ['rules', 'tag', '分类'],
               ['settings', 'settings', '设置'],
@@ -417,6 +422,7 @@ function App() {
               key={id}
               className={page === id ? 'nav-item active' : 'nav-item'}
               aria-current={page === id ? 'page' : undefined}
+              disabled={cloudViewer && id !== 'cloud'}
               onClick={() => setPage(id)}
             >
               <Icon name={icon} size={18} />
@@ -426,7 +432,7 @@ function App() {
         </nav>
         <div className="local-label">
           <span className="status-dot" />
-          本机记录
+          {cloudViewer ? '账号统计' : '本机记录'}
         </div>
       </header>
 
@@ -1045,7 +1051,9 @@ function App() {
           </section>
         ) : null}
 
-        <div hidden={isStats}>
+        {page === 'cloud' && <CloudPanel demo={isDemo} onUseLocal={cloudViewer ? undefined : () => setPage('overview')} />}
+
+        <div hidden={isStats || page === 'cloud'}>
           {config ? (
             <SettingsPanel
               config={config}
@@ -1064,7 +1072,7 @@ function App() {
             PCTime <span className="footer-separator">/</span> 让时间看得见
           </span>
           <span>
-            统计保存在本机
+            {page === 'cloud' ? '登录后同步应用时长 · 窗口标题保留在本机' : '统计保存在本机'}
             {config?.webdav.enabled ? ' · WebDAV 自动同步已开启' : ''}
           </span>
         </footer>

@@ -1,13 +1,15 @@
 {
   "name": "electron-vite-project",
   "private": true,
-  "version": "0.0.0",
+  "version": "0.1.1",
   "type": "module",
   "scripts": {
     "dev": "vite --force",
     "dev:web": "vite --mode web --host 127.0.0.1",
     "typecheck": "tsc --noEmit",
     "test": "node --experimental-vm-modules --test",
+    "server": "node server/index.mjs",
+    "test:cloud": "node --test tests/cloud-server.test.mjs tests/cloud-client.test.mjs",
     "build:app": "tsc && vite build",
     "build": "set \"CSC_IDENTITY_AUTO_DISCOVERY=false\"&& tsc && vite build && electron-builder",
     "update": "npm run build",

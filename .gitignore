@@ -13,6 +13,12 @@ dist-electron
 dist-ssr
 release
 .artifacts
+server/data
+android/.gradle
+android/**/build
+android/local.properties
+*.jks
+*.keystore
 *.local
 
 # Local application data and credentials
