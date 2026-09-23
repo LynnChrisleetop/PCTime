@@ -1,12 +1,13 @@
-# PCTime Android 0.1.0
+# PCTime Android 0.1.1
 
 原生 Java Android 客户端，最低 Android 8.0（API 26），目标 Android 15（API 35）。名称与图标暂用 PCTime。无需 Android Studio。
 
 ## 安装与使用
 
-1. 安装 `release/0.1.0/PCTime-Android-0.1.0-debug.apk`，这是使用本机构建密钥签名的调试包，用于个人试用，尚未发布到应用商店。
+1. 安装 `release/0.1.1/PCTime-Android-0.1.1-debug.apk`，这是使用本机构建密钥签名的调试包，用于个人试用，尚未发布到应用商店。
 2. 在「使用记录权限」中跳转系统设置，为 PCTime 开启「使用情况访问权限」。返回后使用其他应用，再点击「刷新并同步」。
-3. 在「账号与服务器」中填写已经启动的同步服务地址，登录与 Windows 相同的账号。新账号可在任一端创建。手机访问电脑上的服务时应填写电脑局域网 IP，例如 `http://192.168.1.10:4318`；`127.0.0.1` 指向手机自身。
+3. 无需登录即可查看默认的「本机离线记录」。账号和服务器表单默认收起，统一在线服务尚未部署。
+   如已有自建服务，可展开「跨设备同步」中的「高级设置」，填写地址并登录与 Windows 相同的账号。手机访问电脑上的服务时应填写电脑局域网 IP，例如 `http://192.168.1.10:4318`；`127.0.0.1` 指向手机自身。
 4. 在设备范围中切换全部设备、本机离线记录或具体手机/电脑。点击应用查看各设备贡献。微信、哔哩哔哩等应用由服务端的映射表统一归类。
 
 全部设备使用时长直接累加，同时各用 10 分钟记为 20 分钟；日期按每台设备记录时的本地日期。系统事件里任一时刻最多计算一个前台应用，排除锁屏、灭屏、已知关机时段以及 PCTime 自身。分屏中的多个应用不会同时计时。Android 8 的事件信息少于新版系统，真实设备上的锁屏与厂商差异仍须实测。
@@ -31,7 +32,7 @@
 
 构建脚本执行 `assembleDebug` 和 `lintDebug`，再用 `apksigner` 验证 APK 签名。成功后输出：
 
-- `release/0.1.0/PCTime-Android-0.1.0-debug.apk`
+- `release/0.1.1/PCTime-Android-0.1.1-debug.apk`
 - `.artifacts/android/PCTime-Android-debug.apk`
 - Lint 报告：`android/app/build/reports/lint-results-debug.html`
 

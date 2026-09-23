@@ -22,8 +22,9 @@ $apk = Join-Path $PSScriptRoot 'app/build/outputs/apk/debug/app-debug.apk'
 & (Join-Path $AndroidHome 'build-tools/35.0.0/apksigner.bat') verify --verbose $apk
 if ($LASTEXITCODE -ne 0) { throw 'Android APK signature verification failed' }
 Copy-Item -LiteralPath $apk -Destination (Join-Path $output 'PCTime-Android-debug.apk') -Force
-$release = Join-Path $repository 'release/0.1.0'
+$version = (Get-Content -LiteralPath (Join-Path $repository 'package.json') -Raw | ConvertFrom-Json).version
+$release = Join-Path $repository "release/$version"
 New-Item -ItemType Directory -Path $release -Force | Out-Null
-$releaseApk = Join-Path $release 'PCTime-Android-0.1.0-debug.apk'
+$releaseApk = Join-Path $release "PCTime-Android-$version-debug.apk"
 Copy-Item -LiteralPath $apk -Destination $releaseApk -Force
 Get-FileHash -Algorithm SHA256 -LiteralPath $releaseApk

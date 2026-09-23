@@ -2,7 +2,9 @@
 
 PCTime 现在支持 Windows 与 Android 的屏幕时间统计。登录同一账号后，可查看各设备合计、单台设备，以及微信、哔哩哔哩等应用的跨端合计。名称和图标暂沿用 PCTime，后续再统一品牌。
 
-Windows 保留原有本机应用、窗口、自定义分类和 WebDAV 功能；Android 使用系统“使用情况访问”权限。同步服务可自行部署，基于 Node.js 24 与 SQLite。首次使用请看 [跨设备使用指南](docs/cross-device-guide.md)。
+Windows 保留原有本机应用、窗口、自定义分类和 WebDAV 功能；Android 使用系统“使用情况访问”权限。首次使用请看 [安装与开始记录](docs/quick-start.md)：本机统计无需账号或服务器。需要跨设备合计时，再看 [跨设备连接说明](docs/cross-device-guide.md)。
+
+Windows 使用 `PCTime-Setup-0.1.1.exe` 双击安装，自动创建桌面入口；Android 使用 `PCTime-Android-0.1.1-debug.apk` 安装。用户无需安装 Node.js 或运行开发命令。本仓库中的开发环境要求仅用于开发、构建或自行部署同步服务。
 
 ## 界面与功能
 

@@ -21,7 +21,7 @@ function syncedAt(value: string | null): string {
 
 const emptyState: CloudState = { serverUrl: '', user: null, device: null, syncing: false, lastSyncedAt: null, error: null }
 
-export default function CloudPanel({ demo = false }: { demo?: boolean }) {
+export default function CloudPanel({ demo = false, onUseLocal }: { demo?: boolean; onUseLocal?: () => void }) {
   const native = !!window.cloud
   const api = useMemo(() => window.cloud ?? createBrowserCloudApi(), [])
   const [state, setState] = useState<CloudState>(emptyState)
@@ -172,8 +172,13 @@ export default function CloudPanel({ demo = false }: { demo?: boolean }) {
           </ul>
         </section>
         <section className="panel cloud-login">
-          <h2>连接你的时间</h2>
-          <p className="muted">两台设备使用同一个服务地址和账号。</p>
+          <h2>先从这台设备开始</h2>
+          <p className="muted">本机统计无需账号。Windows 打开“概览”即可查看记录，手机授权后即可使用。</p>
+          <p className="muted">统一在线同步尚未开放。服务上线后，登录同一账号就能合并手机与电脑的时间。</p>
+          {onUseLocal && <button className="button button-primary" onClick={onUseLocal}>查看本机记录</button>}
+          <details className="cloud-setup-help">
+          <summary>高级设置 · 连接已有同步服务</summary>
+          <p className="muted">仅在你已拥有同步服务时填写。两台设备使用相同的服务地址和账号。</p>
           <div className="segmented cloud-auth-tabs" aria-label="账号操作">
             <button type="button" aria-pressed={mode === 'login'} className={mode === 'login' ? 'selected' : ''} onClick={() => { setMode('login'); setError('') }} disabled={!!busy}>登录</button>
             <button type="button" aria-pressed={mode === 'register'} className={mode === 'register' ? 'selected' : ''} onClick={() => { setMode('register'); setError('') }} disabled={!!busy}>创建账号</button>
@@ -187,6 +192,7 @@ export default function CloudPanel({ demo = false }: { demo?: boolean }) {
             <button className="button button-primary cloud-submit" type="submit" disabled={!!busy}>{busy === 'auth' ? '正在连接…' : mode === 'register' ? '创建账号并连接' : '登录并连接'}</button>
           </form>
           <details className="cloud-setup-help"><summary>还没有同步服务？</summary><p>这一版支持自行部署。先按项目中的《跨设备使用指南》启动服务；电脑可填写 http://127.0.0.1:4318，手机填写电脑的局域网 IP。公网部署使用 HTTPS。</p><p>首次注册不发送验证邮件。请保存好密码；此版本暂不支持找回密码。</p></details>
+          </details>
         </section>
       </div>
     ) : <>

@@ -1,5 +1,7 @@
 # Windows + Android 跨设备使用指南
 
+只想安装后记录本机时间，请看 [安装与开始记录](quick-start.md)，无需完成下面的服务器配置。本页用于连接多台设备和自行部署同步服务。
+
 这一版使用 PCTime 作为临时名称，提供可运行的 Windows 客户端、Android 应用，以及自行部署的账号同步服务。尚未提供公共托管服务；两端填写同一个服务地址、登录同一个账号即可关联。
 
 ## 先在电脑上启动同步服务
@@ -25,7 +27,7 @@ npm run server
 
 ## Windows
 
-1. 解压 `release/0.1.0/PCTime-Windows-0.1.0.zip`，运行里面的 `PCTime.exe`。不要只复制 exe，保留同目录资源。
+1. 双击 `release/0.1.1/PCTime-Setup-0.1.1.exe` 安装，之后从桌面的 PCTime 图标打开。若使用 ZIP 便携版本，解压后运行里面的 `PCTime.exe`，保留同目录资源。
 2. 打开“跨设备”，填写同步服务地址、邮箱、至少 10 个字符的密码，以及设备名称。
 3. 首次使用选择“创建账号”；已有账号直接登录。注册即创建会话，不发送验证邮件。此版本暂不支持找回密码，请保存好密码。
 4. 登录后自动同步，运行期间约每分钟尝试一次；也可点“立即同步”。收起到托盘后仍可记录，退出应用则停止记录。
@@ -34,7 +36,7 @@ npm run server
 
 ## Android
 
-1. 将 `release/0.1.0/PCTime-Android-0.1.0-debug.apk` 传到 Android 8.0 或更新系统的手机，安装测试版。
+1. 将 `release/0.1.1/PCTime-Android-0.1.1-debug.apk` 传到 Android 8.0 或更新系统的手机，安装测试版。
 2. 按页面提示进入系统设置，允许 PCTime 的“使用情况访问”。无需无障碍权限。
 3. 填写相同的同步服务地址，登录 Windows 上创建的账号，设置容易区分的设备名。
 4. 点击同步，查看全部设备、单台设备和应用合计；点应用可查看各设备贡献。
@@ -72,6 +74,6 @@ npm run build
 
 Android 工具链及构建命令见 [Android 说明](../android/README.md)。服务测试使用隔离的临时数据库，Windows 集成测试通过真实 HTTP 调用服务，预览演示数据不会写入真实用户记录。
 
-本次验证结果与仍待真机检查的项目见 [0.1.0 验证记录](verification-0.1.0.md)。
+安装体验的验证结果见 [0.1.1 验证记录](verification-0.1.1.md)，计时与同步验证见 [0.1.0 验证记录](verification-0.1.0.md)。
 
 浏览器查看模式：启动 `npm run dev:web`，访问 `http://127.0.0.1:5173/?cloud=1`。启动服务前设置 `$env:PCTIME_ALLOWED_ORIGINS = 'http://127.0.0.1:5173'`。只允许精确来源，不需要为原生 Windows/Android 客户端设置 CORS。

@@ -42,7 +42,7 @@ public final class MainActivity extends Activity {
     private JSONArray knownDevices = new JSONArray();
     private LocalDate date = LocalDate.now();
     private String deviceId = "local", renderedAccount = null;
-    private boolean busy, updatingSpinner;
+    private boolean busy, updatingSpinner, signedIn;
     private int generation;
     private EditText serverField, emailField, passwordField, nameField;
 
@@ -110,7 +110,7 @@ public final class MainActivity extends Activity {
             try { startActivity(new Intent(Settings.ACTION_USAGE_ACCESS_SETTINGS, Uri.parse("package:" + getPackageName()))); }
             catch (Exception error) { startActivity(new Intent(Settings.ACTION_USAGE_ACCESS_SETTINGS)); }
         });
-        access.addView(text("只统计前台应用时长，排除灭屏、锁屏与 PCTime 自身。不读取屏幕内容，不使用无障碍服务。", 12, MUTED, false)); body.addView(access);
+        access.addView(text("只统计前台应用时长，排除灭屏、锁屏与 PCTime 自身。不读取屏幕内容，不使用无障碍服务。", 12, MUTED, false)); body.addView(access, 2);
 
         LinearLayout deviceCard = card(Color.WHITE); deviceCard.addView(text("设备贡献", 17, TEXT, true)); deviceRows = column(); deviceCard.addView(deviceRows); body.addView(deviceCard);
         LinearLayout apps = card(Color.WHITE); apps.addView(text("应用使用明细", 17, TEXT, true)); apps.addView(text("点击应用查看各设备贡献。", 12, MUTED, false)); appRows = column(); apps.addView(appRows); body.addView(apps);
@@ -130,13 +130,13 @@ public final class MainActivity extends Activity {
     }
     private void updateAccount() {
         try {
-            JSONObject state = manager.state(); String key = accountKey(state);
+            JSONObject state = manager.state(); signedIn = state.optBoolean("signedIn"); String key = accountKey(state);
             if (key.equals(renderedAccount)) return; renderedAccount = key; accountCard.removeAllViews();
             knownDevices = new JSONArray(); deviceId = state.optBoolean("signedIn") ? "" : "local";
             total.setText("—"); totalLabel.setText(date + " · 等待刷新"); scope.setText("账号已更新，正在读取当前范围的记录。");
             appRows.removeAllViews(); deviceRows.removeAllViews();
             updateDeviceOptions();
-            accountCard.addView(text("账号与服务器", 17, TEXT, true));
+            accountCard.addView(text("跨设备同步 · 可选", 17, TEXT, true));
             if (state.optBoolean("signedIn")) {
                 accountLabel = text(state.getString("email") + "\n" + state.getString("server"), 14, TEXT, false); accountCard.addView(accountLabel);
                 accountCard.addView(text("设备名称：" + state.getString("deviceName"), 13, MUTED, false));
@@ -146,14 +146,17 @@ public final class MainActivity extends Activity {
                             generation++; manager.logout((value, error) -> { setBusy(false); deviceId = "local"; knownDevices = new JSONArray(); updateAccount(); updateDeviceOptions(); if (error != null) showError(error); else refresh(false); });
                         }).show());
             } else {
-                accountCard.addView(text("在自己的服务器登录同一账号，汇总手机与电脑。手机填写电脑的局域网地址，不要用 127.0.0.1。", 12, MUTED, false));
-                serverField = field(accountCard, "服务器地址", "http://192.168.1.10:4318", InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_VARIATION_URI);
+                accountCard.addView(text("本机统计无需账号，开启上方权限即可开始。统一在线同步尚未开放，服务上线后登录即可汇总手机与电脑。", 12, MUTED, false));
+                Button advanced = button("高级设置 · 连接已有服务", false); accountCard.addView(advanced);
+                LinearLayout accountForm = column(); accountForm.setVisibility(View.GONE); accountCard.addView(accountForm);
+                advanced.setOnClickListener(view -> { boolean expand = accountForm.getVisibility() != View.VISIBLE; accountForm.setVisibility(expand ? View.VISIBLE : View.GONE); advanced.setText(expand ? "收起连接设置" : "高级设置 · 连接已有服务"); });
+                serverField = field(accountForm, "服务器地址", "http://192.168.1.10:4318", InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_VARIATION_URI);
                 serverField.setText(getPreferences(MODE_PRIVATE).getString("server", ""));
-                emailField = field(accountCard, "邮箱", "you@example.com", InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_VARIATION_EMAIL_ADDRESS);
-                passwordField = field(accountCard, "密码", "10–128 个字符", InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_VARIATION_PASSWORD);
+                emailField = field(accountForm, "邮箱", "you@example.com", InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_VARIATION_EMAIL_ADDRESS);
+                passwordField = field(accountForm, "密码", "10–128 个字符", InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_VARIATION_PASSWORD);
                 passwordField.setSaveEnabled(false);
-                nameField = field(accountCard, "此设备名称", "例如：我的手机", InputType.TYPE_CLASS_TEXT); nameField.setText(Build.MANUFACTURER + " " + Build.MODEL);
-                loginButton = button("登录", true); registerButton = button("创建账号", false); accountCard.addView(loginButton); accountCard.addView(registerButton);
+                nameField = field(accountForm, "此设备名称", "例如：我的手机", InputType.TYPE_CLASS_TEXT); nameField.setText(Build.MANUFACTURER + " " + Build.MODEL);
+                loginButton = button("登录", true); registerButton = button("创建账号", false); accountForm.addView(loginButton); accountForm.addView(registerButton);
                 loginButton.setOnClickListener(view -> login(false)); registerButton.setOnClickListener(view -> login(true));
                 if (state.optString("error", "").contains("清理")) {
                     accountCard.addView(text(state.getString("error"), 13, Color.rgb(161,62,32), false));
@@ -180,7 +183,7 @@ public final class MainActivity extends Activity {
     private void setBusy(boolean value) {
         busy = value; syncButton.setEnabled(!value); dateButton.setEnabled(!value); devices.setEnabled(!value);
         if (loginButton != null) loginButton.setEnabled(!value); if (registerButton != null) registerButton.setEnabled(!value);
-        syncButton.setText(value ? "正在处理…" : "刷新并同步");
+        syncButton.setText(value ? "正在处理…" : signedIn ? "刷新并同步" : "刷新记录");
     }
     private void refresh(boolean upload) {
         if (busy) return; setBusy(true); updatePermission(); status.setText("正在读取 " + date + "…"); status.setTextColor(MUTED);
@@ -196,7 +199,7 @@ public final class MainActivity extends Activity {
                 String warning = result.optString("warning", "");
                 String synced = result.getJSONObject("state").optString("lastSync", "");
                 String freshness = synced.isEmpty() || synced.equals("null") ? "" : "\n本机最近同步：" + displayTime(synced);
-                status.setText((warning.isEmpty() ? (upload ? "已刷新；已登录时同步到服务器。" : "记录已更新。") : warning) + freshness);
+                status.setText((warning.isEmpty() ? (upload && signedIn ? "记录已刷新，并同步到账号。" : "本机记录已更新。") : warning) + freshness);
                 status.setTextColor(warning.isEmpty() ? BLUE : Color.rgb(161,62,32));
             } catch (Exception invalid) { showError(new Exception("服务器数据格式不正确，请重试")); }
         });

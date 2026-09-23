@@ -20,9 +20,14 @@
   },
   "win": {
     "icon": "public/pctime.ico",
-    "sign": false,
     "signAndEditExecutable": false,
     "target": [
+      {
+        "target": "nsis",
+        "arch": [
+          "x64"
+        ]
+      },
       {
         "target": "zip",
         "arch": [
@@ -33,9 +38,14 @@
     "artifactName": "${productName}-Windows-${version}.${ext}"
   },
   "nsis": {
-    "oneClick": false,
+    "artifactName": "${productName}-Setup-${version}.${ext}",
+    "oneClick": true,
     "perMachine": false,
-    "allowToChangeInstallationDirectory": true,
+    "allowElevation": false,
+    "createDesktopShortcut": true,
+    "createStartMenuShortcut": true,
+    "shortcutName": "PCTime",
+    "runAfterFinish": true,
     "deleteAppDataOnUninstall": false
   },
   "linux": {

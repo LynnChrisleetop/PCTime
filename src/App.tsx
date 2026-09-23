@@ -411,8 +411,8 @@ function App() {
         <nav className="main-nav" aria-label="主导航">
           {(
             [
-              ['cloud', 'monitor', '跨设备'],
               ['overview', 'grid', '概览'],
+              ['cloud', 'monitor', '跨设备'],
               ['activity', 'list', '明细'],
               ['rules', 'tag', '分类'],
               ['settings', 'settings', '设置'],
@@ -1051,7 +1051,7 @@ function App() {
           </section>
         ) : null}
 
-        {page === 'cloud' && <CloudPanel demo={isDemo} />}
+        {page === 'cloud' && <CloudPanel demo={isDemo} onUseLocal={cloudViewer ? undefined : () => setPage('overview')} />}
 
         <div hidden={isStats || page === 'cloud'}>
           {config ? (
