@@ -12,6 +12,7 @@ dist
 dist-electron
 dist-ssr
 release
+.artifacts
 *.local
 
 # Local application data and credentials

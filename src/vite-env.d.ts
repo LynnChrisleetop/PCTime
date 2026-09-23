@@ -4,6 +4,8 @@ type UsageSummary = {
   range: 'today' | 'week' | 'month' | 'year' | 'all' | 'date'
   date: string
   current?: { app: string; title: string }
+  trackingError?: string
+  saveError?: string
   apps: Array<{ app: string; totalMs: number }>
   windows: Array<{ app: string; title: string; totalMs: number }>
   categories?: Array<{ category: string; totalMs: number }>

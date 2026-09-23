@@ -1,104 +1,78 @@
 # PCTime
 
-PCTime 是一款面向 Windows 的桌面使用时间统计工具。它会在本机记录当前活跃应用和窗口标题，并通过图表展示应用、窗口及自定义分类的使用时长。
+PCTime 是面向 Windows 的桌面使用时间统计工具，在本机记录活跃应用与窗口标题，按应用、窗口和自定义分类汇总使用时长。基于 Electron、React、TypeScript、Vite 和 Chart.js。
 
-## 功能
+## 界面与功能
 
-- 按今天、最近一周、本月、近一年、全部时间或指定日期查看统计
-- 展示当前活跃应用、应用排行和窗口/页面排行
-- 使用应用名称与窗口标题规则自动分类
-- 自定义分类颜色和默认分类
-- 将统计结果导出为 JSON 或 CSV
-- 支持开机自启、启动后最小化以及系统托盘
-- 支持通过 WebDAV 手动或定时同步数据
+- **时间概览**：查看总时长、分类分布、应用排行与当前活动，支持今天、近 7 天、本月、近一年、全部时间和指定日期。
+- **使用明细**：搜索应用或窗口标题、分页浏览，并从应用进入对应窗口明细；支持导出 JSON / CSV。
+- **分类规则**：设置分类、颜色与默认分类，以应用名和窗口标题匹配；规则从上到下按优先级生效。编辑先保留为草稿，显式保存后生效，可放弃更改、调整顺序及撤销删除。切换页面保留草稿。
+- **偏好设置**：管理开机启动、托盘行为和 WebDAV 同步。设置需显式保存，连接测试和同步会提示尚未保存的更改。
 
-## 下载与使用
-
-Windows 用户可以前往仓库的 [Releases](../../releases) 页面下载最新的 PCTime 压缩包。解压后运行 `PCTime.exe` 即可。
-
-PCTime 会在本机 Electron 用户数据目录保存 `usage.json` 和 `config.json`。其中可能包含窗口标题、WebDAV 地址、账号和应用密码，请勿公开分享这些文件。
+电脑空闲超过 60 秒、锁屏或休眠时暂停计时。两次采样间隔超过 5 秒时，该段时间保守不计，避免将休眠或系统卡顿算作使用时间。
 
 ## 本地开发
 
-环境要求：
+需要 Windows 10/11、Node.js 18 或更高版本及 npm。
 
-- Windows 10/11
-- Node.js 18 或更高版本
-- npm
-
-安装依赖并启动开发环境：
-
-```bash
-npm install
+```powershell
+npm ci
 npm run dev
 ```
 
-执行代码检查：
+`dev` 启动 Electron 桌面应用。只查看网页界面可运行：
 
-```bash
-npm run lint
+```powershell
+npm run dev:web
 ```
 
-构建 Windows 版本：
+在终端显示的本地地址后添加 `?demo=1`，例如 [演示页面](http://127.0.0.1:5173/?demo=1)。演示使用示例数据，刷新后重置；网页不会监控电脑，也不会连接真实同步服务。
 
-```bash
-npm run build
+| 命令 | 用途 |
+| --- | --- |
+| `npm run typecheck` | TypeScript 类型检查 |
+| `npm run lint` | 代码检查 |
+| `npm test` | 回归测试 |
+| `npm run build:app` | 编译前端及 Electron 代码，不打包 |
+| `npm run build` | 编译并打包 Windows 应用 |
+
+打包产物输出到 `release/<version>/`，解压 Windows 压缩包后运行 `PCTime.exe`。首次安装依赖或打包需要下载 Electron 及构建工具。
+
+## 数据目录与兼容性
+
+统计保存在 `usage.json`，配置保存在 `config.json`，均位于 Electron 用户数据目录。保留原有记录格式的读取兼容性，不需要清空历史记录。
+
+开发模式默认使用 `%APPDATA%\PCTime-dev`，与已安装版本的数据隔离。可通过 `PCTIME_USER_DATA` 指定独立目录，例如：
+
+```powershell
+$env:PCTIME_USER_DATA = "E:\PCTime-test-data"
+npm run dev
 ```
 
-构建产物会生成在 `release/<version>/` 目录。
+此环境变量同样适用于打包应用；测试时请使用单独目录。
 
-## 技术栈
+## WebDAV 同步
 
-- Electron
-- React
-- TypeScript
-- Vite
-- Chart.js
-- active-win
-- WebDAV
+支持坚果云等 WebDAV 服务。填写并保存连接信息后可测试连接；开启并保存自动同步后，可立即同步或按间隔、每日、每周、退出应用时同步。自动计划需要应用正在运行，时间使用电脑本地时区。收起到托盘不等于退出应用。
+
+- **连接测试只读**：读取目录验证连接，不上传或合并记录；写入权限在实际同步时验证。
+- **记录合并**：同一天、同一应用窗口取本地与远端的较大时长，避免重复累计；这不是多台电脑使用时间的求和。
+- **配置备份**：仅备份分类、颜色、默认分类和规则，不上传账号、密码及启动偏好，也不使用远端配置覆盖本机设置。
+
+目前未完成真实 WebDAV 服务端的联调验证，实际服务兼容性与目录写入权限需在使用时确认。
 
 ## 数据与隐私
 
-- 使用统计默认仅保存在本机。
-- 程序空闲超过 60 秒时暂停记录。
-- 启用 WebDAV 后，统计与配置数据会同步到用户指定的服务器。
-- WebDAV 密码保存在本机配置文件中，不会提交到本代码仓库。
+统计默认仅保存在本机，启用 WebDAV 后会上传到你指定的服务器。本地 JSON 文件可能包含敏感窗口标题；`config.json` 还包含 WebDAV 地址、账号和应用密码，请勿公开分享。
+
+界面导出的 JSON / CSV 只包含统计数据，不包含 WebDAV 凭据或应用设置，但仍可能包含窗口标题，分享前请检查内容。
 
 ## 项目结构
 
 ```text
-electron/       Electron 主进程、预加载脚本及使用时间统计
-src/            React 用户界面
+electron/       主进程、统计、配置及同步
+src/            React 界面与展示逻辑
+tests/          回归测试
 public/         静态资源
-release/        本地构建产物（不提交到 Git）
+release/        本地打包产物（不提交到 Git）
 ```
-# React + TypeScript + Vite
-
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
-
-Currently, two official plugins are available:
-
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react/README.md) uses [Babel](https://babeljs.io/) for Fast Refresh
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react-swc) uses [SWC](https://swc.rs/) for Fast Refresh
-
-## Expanding the ESLint configuration
-
-If you are developing a production application, we recommend updating the configuration to enable type aware lint rules:
-
-- Configure the top-level `parserOptions` property like this:
-
-```js
-export default {
-  // other rules...
-  parserOptions: {
-    ecmaVersion: 'latest',
-    sourceType: 'module',
-    project: ['./tsconfig.json', './tsconfig.node.json'],
-    tsconfigRootDir: __dirname,
-  },
-}
-```
-
-- Replace `plugin:@typescript-eslint/recommended` to `plugin:@typescript-eslint/recommended-type-checked` or `plugin:@typescript-eslint/strict-type-checked`
-- Optionally add `plugin:@typescript-eslint/stylistic-type-checked`
-- Install [eslint-plugin-react](https://github.com/jsx-eslint/eslint-plugin-react) and add `plugin:react/recommended` & `plugin:react/jsx-runtime` to the `extends` list

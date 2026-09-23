@@ -5,6 +5,10 @@
   "type": "module",
   "scripts": {
     "dev": "vite --force",
+    "dev:web": "vite --mode web --host 127.0.0.1",
+    "typecheck": "tsc --noEmit",
+    "test": "node --experimental-vm-modules --test",
+    "build:app": "tsc && vite build",
     "build": "set \"CSC_IDENTITY_AUTO_DISCOVERY=false\"&& tsc && vite build && electron-builder",
     "update": "npm run build",
     "lint": "eslint . --ext ts,tsx --report-unused-disable-directives --max-warnings 0",
