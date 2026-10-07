@@ -27,6 +27,8 @@ Device registration is idempotent for one account/client ID and updates its disp
 
 ## Deployment and backup
 
+For the inspected Bohrium development machine, see [deployment notes](../docs/bohrium-deployment.md). Its `/personal` directory is NFS, so the active WAL database runs on local storage and consistent snapshots are published to `/personal`. Instance-specific bootstrap and backup tools are in `server/ops/`.
+
 Build from the **server directory**, so unrelated application files and local data are not included:
 
 ```sh
